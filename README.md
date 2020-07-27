@@ -1,4 +1,4 @@
-# BuckleScript Bindings Cookbook
+**BuckleScript Bindings Cookbook**
 
 WRITING BuckleScript bindings can be somewhere between an art and a science, taking some learning investment into both the JavaScript and OCaml/Reason type systems to get a proper feel for it.
 
@@ -8,32 +8,34 @@ Along the way, I will try to introduce standard types for modelling various Java
 
 **Contents**
 
-- [BuckleScript Bindings Cookbook](#bucklescript-bindings-cookbook)
-  - [Globals](#globals)
-    - [window // global variable](#window--global-variable)
-    - [window? // does global variable exist](#window--does-global-variable-exist)
-    - [Math.PI // variable in global module](#mathpi--variable-in-global-module)
-    - [console.log // function in global module](#consolelog--function-in-global-module)
-  - [Modules](#modules)
-    - [const path = require('path'); path.join('a', 'b') // function in CJS/ES module](#const-path--requirepath-pathjoina-b--function-in-cjses-module)
-    - [const foo = require('foo'); foo(1) // import entire module as a value](#const-foo--requirefoo-foo1--import-entire-module-as-a-value)
-    - [import foo from 'foo'; foo(1) // import ES6 module default export](#import-foo-from-foo-foo1--import-es6-module-default-export)
-  - [Functions](#functions)
-    - [const dir = path.join('a', 'b', ...) // function with rest args](#const-dir--pathjoina-b---function-with-rest-args)
-    - [const nums = range(start, stop, step) // call a function with named arguments for readability](#const-nums--rangestart-stop-step--call-a-function-with-named-arguments-for-readability)
-    - [const nums = range(start, stop, [step]) // optional final argument(s)](#const-nums--rangestart-stop-step--optional-final-arguments)
-    - [forEach(start, stop, item => console.log(item)) // model a callback](#foreachstart-stop-item--consolelogitem--model-a-callback)
-  - [Objects](#objects)
-    - [const person = {id: 1, name: 'Bob'} // create an object](#const-person--id-1-name-bob--create-an-object)
-    - [person.name // get a prop](#personname--get-a-prop)
-    - [person.id = 0 // set a prop](#personid--0--set-a-prop)
-  - [Classes and OOP](#classes-and-oop)
-    - [const foo = new Foo() // call a class constructor](#const-foo--new-foo--call-a-class-constructor)
-    - [const bar = foo.bar // get an instance property](#const-bar--foobar--get-an-instance-property)
-    - [foo.bar = 1 // set an instance property](#foobar--1--set-an-instance-property)
-    - [foo.meth() // call a nullary instance method](#foometh--call-a-nullary-instance-method)
-    - [const newStr = str.replace(substr, newSubstr) // non-mutating instance method](#const-newstr--strreplacesubstr-newsubstr--non-mutating-instance-method)
-    - [arr.sort(compareFunction) // mutating instance method](#arrsortcomparefunction--mutating-instance-method)
+- [Globals](#globals)
+  - [window // global variable](#window--global-variable)
+  - [window? // does global variable exist](#window--does-global-variable-exist)
+  - [Math.PI // variable in global module](#mathpi--variable-in-global-module)
+  - [console.log // function in global module](#consolelog--function-in-global-module)
+- [Modules](#modules)
+  - [const path = require('path'); path.join('a', 'b') // function in CJS/ES module](#const-path--requirepath-pathjoina-b--function-in-cjses-module)
+  - [const foo = require('foo'); foo(1) // import entire module as a value](#const-foo--requirefoo-foo1--import-entire-module-as-a-value)
+  - [import foo from 'foo'; foo(1) // import ES6 module default export](#import-foo-from-foo-foo1--import-es6-module-default-export)
+- [Functions](#functions)
+  - [const dir = path.join('a', 'b', ...) // function with rest args](#const-dir--pathjoina-b---function-with-rest-args)
+  - [const nums = range(start, stop, step) // call a function with named arguments for readability](#const-nums--rangestart-stop-step--call-a-function-with-named-arguments-for-readability)
+  - [const nums = range(start, stop, [step]) // optional final argument(s)](#const-nums--rangestart-stop-step--optional-final-arguments)
+  - [forEach(start, stop, item => console.log(item)) // model a callback](#foreachstart-stop-item--consolelogitem--model-a-callback)
+- [Objects](#objects)
+  - [const person = {id: 1, name: 'Bob'} // create an object](#const-person--id-1-name-bob--create-an-object)
+  - [person.name // get a prop](#personname--get-a-prop)
+  - [person.id = 0 // set a prop](#personid--0--set-a-prop)
+- [Classes and OOP](#classes-and-oop)
+  - [const foo = new Foo() // call a class constructor](#const-foo--new-foo--call-a-class-constructor)
+  - [const bar = foo.bar // get an instance property](#const-bar--foobar--get-an-instance-property)
+  - [foo.bar = 1 // set an instance property](#foobar--1--set-an-instance-property)
+  - [foo.meth() // call a nullary instance method](#foometh--call-a-nullary-instance-method)
+  - [const newStr = str.replace(substr, newSubstr) // non-mutating instance method](#const-newstr--strreplacesubstr-newsubstr--non-mutating-instance-method)
+  - [arr.sort(compareFunction) // mutating instance method](#arrsortcomparefunction--mutating-instance-method)
+- [Null and undefined](#null-and-undefined)
+  - [foo.bar === undefined // check for undefined](#foobar--undefined--check-for-undefined)
+  - [foo.bar == null // check for null or undefined](#foobar--null--check-for-null-or-undefined)
 
 ## Globals
 
@@ -264,3 +266,35 @@ let _ = sort(arr, compare);
 For a mutating method, it's traditional to pass the instance argument first.
 
 Note: `compare` is a function provided by the standard library, which fits the defined interface of JavaScript's comparator function.
+
+## Null and undefined
+
+### foo.bar === undefined // check for undefined
+
+```ocaml
+[@bs.get] external bar: t => option(int) = "bar";
+
+switch (Foo.bar(foo)) {
+| Some(value) => ...
+| None => ...
+}
+```
+
+If you know some value may be `undefined` (but not `null`, see next section), and if you know its type is monomorphic (i.e. not generic), then you can model it directly as an `option(...)` type.
+
+Ref: https://reasonml.org/docs/reason-compiler/latest/null-undefined-option
+
+### foo.bar == null // check for null or undefined
+
+```ocaml
+[@bs.get] [@bs.return nullable] external bar: t => option(t);
+
+switch (Foo.bar(foo)) {
+| Some(value) => ...
+| None => ...
+}
+```
+
+If you know the value is 'nullable' (i.e. could be `null` or `undefined`), or if the value could be polymorphic, then `[@bs.return nullable]` is appropriate to use.
+
+Note that this attribute requires the return type of the binding to be an `option(...)` type as well.
