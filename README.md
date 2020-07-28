@@ -17,15 +17,19 @@ Along the way, I will try to introduce standard types for modelling various Java
   - [const path = require('path'); path.join('a', 'b') // function in CJS/ES module](#const-path--requirepath-pathjoina-b--function-in-cjses-module)
   - [const foo = require('foo'); foo(1) // import entire module as a value](#const-foo--requirefoo-foo1--import-entire-module-as-a-value)
   - [import foo from 'foo'; foo(1) // import ES6 module default export](#import-foo-from-foo-foo1--import-es6-module-default-export)
+  - [const foo = require('foo'); foo.bar.baz() // function scoped inside an object in a module](#const-foo--requirefoo-foobarbaz--function-scoped-inside-an-object-in-a-module)
 - [Functions](#functions)
   - [const dir = path.join('a', 'b', ...) // function with rest args](#const-dir--pathjoina-b---function-with-rest-args)
   - [const nums = range(start, stop, step) // call a function with named arguments for readability](#const-nums--rangestart-stop-step--call-a-function-with-named-arguments-for-readability)
   - [const nums = range(start, stop, [step]) // optional final argument(s)](#const-nums--rangestart-stop-step--optional-final-arguments)
+  - [mkdir('src/main', {recursive: true}) // options object argument](#mkdirsrcmain-recursive-true--options-object-argument)
   - [forEach(start, stop, item => console.log(item)) // model a callback](#foreachstart-stop-item--consolelogitem--model-a-callback)
+  - [foo('hello'); foo(true) // overloaded function](#foohello-footrue--overloaded-function)
 - [Objects](#objects)
   - [const person = {id: 1, name: 'Bob'} // create an object](#const-person--id-1-name-bob--create-an-object)
   - [person.name // get a prop](#personname--get-a-prop)
   - [person.id = 0 // set a prop](#personid--0--set-a-prop)
+  - [const {id, name} = person // object with destructuring](#const-id-name--person--object-with-destructuring)
 - [Classes and OOP](#classes-and-oop)
   - [const foo = new Foo() // call a class constructor](#const-foo--new-foo--call-a-class-constructor)
   - [const bar = foo.bar // get an instance property](#const-bar--foobar--get-an-instance-property)
@@ -105,6 +109,24 @@ let () = foo(1);
 
 Ref: https://reasonml.org/docs/reason-compiler/latest/import-export#import-an-es6-default-value
 
+### const foo = require('foo'); foo.bar.baz() // function scoped inside an object in a module
+
+```ocaml
+module Foo = {
+  module Bar = {
+    [@bs.module "foo"] [@bs.scope "bar"] external baz: unit => unit = "baz";
+  };
+};
+
+let () = Foo.Bar.baz();
+```
+
+It's not necessary to nest the binding inside Reason modules, but mirroring the structure of the JavaScript module layout does make the binding more discoverable.
+
+Note that `[@bs.scope]` works not just with `[@bs.module]`, but also with `[@bs.val]` (as shown earlier), and with combinations of `[@bs.module]`, `[@bs.new]` (covered in the OOP section), etc.
+
+**Tip:** the `[@bs.scope ...]` attribute supports an arbitrary level of scoping by passing the scope as a tuple argument, e.g. `[@bs.scope ("a", "b", "c")]`.
+
 ## Functions
 
 ### const dir = path.join('a', 'b', ...) // function with rest args
@@ -134,6 +156,24 @@ let nums = range(~start=1, ~stop=10, ());
 
 If a Reason function or binding has an optional parameter, it needs a positional parameter at the end of the parameter list to help the compiler understand when function application is finished and the function can actually execute. If this seems tedious, remember that no other language gives you out-of-the-box curried parameters _and_ named parameters _and_ optional parameters.
 
+### mkdir('src/main', {recursive: true}) // options object argument
+
+```ocaml
+type mkdirOptions;
+[@bs.obj] external mkdirOptions: (~recursive: bool=?, unit) => mkdirOptions = "";
+
+[@bs.val] external mkdir: (string, ~options: mkdirOptions=?, unit) => unit = "mkdir";
+
+// Usage:
+
+let () = mkdir("src", ());
+let () = mkdir("src/main", ~options=mkdirOptions(~recursive=true, ()), ());
+```
+
+The `[@bs.obj]` attribute allows creating a function that will output a JavaScript object. There are simpler ways to create JavaScript objects (see OOP section), but this is the only way that allows omitting optional fields like `recursive` from the output object. By making the binding parameter optional (`~recursive: bool=?`), you indicate that the field is also optional in the object.
+
+Ref: https://reasonml.org/docs/reason-compiler/latest/object-2#function
+
 ### forEach(start, stop, item => console.log(item)) // model a callback
 
 ```ocaml
@@ -144,6 +184,18 @@ forEach(1, 10, Js.log);
 When binding to functions with callbacks, you'll want to ensure that the callbacks are uncurried. `[@bs.uncurry]` is the recommended way of doing that. However, in some circumstances you may be forced to use the static uncurried function syntax. See the docs for details.
 
 Ref: https://reasonml.org/docs/reason-compiler/latest/function#extra-solution
+
+### foo('hello'); foo(true) // overloaded function
+
+```ocaml
+[@bs.val] external fooString: string => unit = "foo";
+[@bs.val] external fooBool: bool => unit = "foo";
+
+fooString("");
+fooBool(true);
+```
+
+Because BuckleScript bindings allow specifying the name on the Reason side and the name on the JavaScript side (in quotes) separately, it's easy to bind multiple times to the same function with different names and signatures. This allows binding to complex JavaScript functions with polymorphic behaviour.
 
 ## Objects
 
@@ -171,6 +223,19 @@ person##id #= 0
 
 Ref: https://reasonml.org/docs/reason-compiler/latest/object-2#write
 
+### const {id, name} = person // object with destructuring
+
+```ocaml
+type person = {id: int, name: string};
+
+let person = {id: 1, name: "Bob"};
+let {id, name} = person;
+```
+
+Since BuckleScript version 7, Reason record types compile to simple JavaScript objects. But you get the added benefits of pattern matching and immutable update syntax on the Reason side. The only caveat is that the object will contain _all_ defined fields; none will be left out, even if they are optional types.
+
+Ref: https://reasonml.org/docs/reason-compiler/latest/object#records-as-objects
+
 ## Classes and OOP
 
 In BuckleScript it's idiomatic to bind to class properties and methods as functions which take the instance as just a normal function argument. So e.g., instead of
@@ -186,6 +251,8 @@ You will write:
 let foo = Foo.make();
 let () = Foo.bar(foo);
 ```
+
+Note that many of the techniques shown in the [Functions](#functions) section are applicable to the instance members shown below.
 
 ### const foo = new Foo() // call a class constructor
 
