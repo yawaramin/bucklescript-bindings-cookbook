@@ -21,16 +21,18 @@ Along the way, I will try to introduce standard types for modelling various Java
 - [Functions](#functions)
   - [const dir = path.join('a', 'b', ...) // function with rest args](#const-dir--pathjoina-b---function-with-rest-args)
   - [const nums = range(start, stop, step) // call a function with named arguments for readability](#const-nums--rangestart-stop-step--call-a-function-with-named-arguments-for-readability)
+  - [foo('hello'); foo(true) // overloaded function](#foohello-footrue--overloaded-function)
   - [const nums = range(start, stop, [step]) // optional final argument(s)](#const-nums--rangestart-stop-step--optional-final-arguments)
   - [mkdir('src/main', {recursive: true}) // options object argument](#mkdirsrcmain-recursive-true--options-object-argument)
+    - [Alternative way](#alternative-way)
   - [forEach(start, stop, item => console.log(item)) // model a callback](#foreachstart-stop-item--consolelogitem--model-a-callback)
-  - [foo('hello'); foo(true) // overloaded function](#foohello-footrue--overloaded-function)
 - [Objects](#objects)
   - [const person = {id: 1, name: 'Bob'} // create an object](#const-person--id-1-name-bob--create-an-object)
   - [person.name // get a prop](#personname--get-a-prop)
   - [person.id = 0 // set a prop](#personid--0--set-a-prop)
   - [const {id, name} = person // object with destructuring](#const-id-name--person--object-with-destructuring)
 - [Classes and OOP](#classes-and-oop)
+  - [I don't see what I need here](#i-dont-see-what-i-need-here)
   - [const foo = new Foo() // call a class constructor](#const-foo--new-foo--call-a-class-constructor)
   - [const bar = foo.bar // get an instance property](#const-bar--foobar--get-an-instance-property)
   - [foo.bar = 1 // set an instance property](#foobar--1--set-an-instance-property)
@@ -147,6 +149,18 @@ Ref: https://reasonml.org/docs/reason-compiler/latest/function#variadic-function
 let nums = range(~start=1, ~stop=10, ~step=2);
 ```
 
+### foo('hello'); foo(true) // overloaded function
+
+```ocaml
+[@bs.val] external fooString: string => unit = "foo";
+[@bs.val] external fooBool: bool => unit = "foo";
+
+fooString("");
+fooBool(true);
+```
+
+Because BuckleScript bindings allow specifying the name on the Reason side and the name on the JavaScript side (in quotes) separately, it's easy to bind multiple times to the same function with different names and signatures. This allows binding to complex JavaScript functions with polymorphic behaviour.
+
 ### const nums = range(start, stop, [step]) // optional final argument(s)
 
 ```ocaml
@@ -172,6 +186,22 @@ let () = mkdir("src/main", ~options=mkdirOptions(~recursive=true, ()), ());
 
 The `[@bs.obj]` attribute allows creating a function that will output a JavaScript object. There are simpler ways to create JavaScript objects (see OOP section), but this is the only way that allows omitting optional fields like `recursive` from the output object. By making the binding parameter optional (`~recursive: bool=?`), you indicate that the field is also optional in the object.
 
+#### Alternative way
+
+Calling a function like `mkdir("src/main", ~options=..., ())` can be syntactically pretty heavy, for the benefit of allowing the optional argument. But there is another way: binding to the same underlying function twice and treating the different invocations as [overloads](#foohello-footrue--overloaded-function).
+
+```ocaml
+[@bs.val] external mkdir: string => unit = "mkdir";
+[@bs.val] external mkdirWith: (string, mkdirOptions) => unit = "mkdir";
+
+// Usage:
+
+let () = mkdir("src/main");
+let () = mkdirWith("src/main", mkdirOptions(~recursive=true, ()));
+```
+
+This way you don't need optional arguments, and no final `()` argument for `mkdirWith`.
+
 Ref: https://reasonml.org/docs/reason-compiler/latest/object-2#function
 
 ### forEach(start, stop, item => console.log(item)) // model a callback
@@ -184,18 +214,6 @@ forEach(1, 10, Js.log);
 When binding to functions with callbacks, you'll want to ensure that the callbacks are uncurried. `[@bs.uncurry]` is the recommended way of doing that. However, in some circumstances you may be forced to use the static uncurried function syntax. See the docs for details.
 
 Ref: https://reasonml.org/docs/reason-compiler/latest/function#extra-solution
-
-### foo('hello'); foo(true) // overloaded function
-
-```ocaml
-[@bs.val] external fooString: string => unit = "foo";
-[@bs.val] external fooBool: bool => unit = "foo";
-
-fooString("");
-fooBool(true);
-```
-
-Because BuckleScript bindings allow specifying the name on the Reason side and the name on the JavaScript side (in quotes) separately, it's easy to bind multiple times to the same function with different names and signatures. This allows binding to complex JavaScript functions with polymorphic behaviour.
 
 ## Objects
 
@@ -232,7 +250,10 @@ let person = {id: 1, name: "Bob"};
 let {id, name} = person;
 ```
 
-Since BuckleScript version 7, Reason record types compile to simple JavaScript objects. But you get the added benefits of pattern matching and immutable update syntax on the Reason side. The only caveat is that the object will contain _all_ defined fields; none will be left out, even if they are optional types.
+Since BuckleScript version 7, Reason record types compile to simple JavaScript objects. But you get the added benefits of pattern matching and immutable update syntax on the Reason side. There are a couple of caveats though:
+
+- The object will contain _all_ defined fields; none will be left out, even if they are optional types
+- If you are referring to record fields defined in other modules, you must prefix at least one field with the module name, e.g. `let {Person.id, name} = person`
 
 Ref: https://reasonml.org/docs/reason-compiler/latest/object#records-as-objects
 
@@ -253,6 +274,10 @@ let () = Foo.bar(foo);
 ```
 
 Note that many of the techniques shown in the [Functions](#functions) section are applicable to the instance members shown below.
+
+### I don't see what I need here
+
+Try looking in the [Functions](#functions) section; in BuckleScript functions and instance methods can share many of the same binding techniques.
 
 ### const foo = new Foo() // call a class constructor
 
