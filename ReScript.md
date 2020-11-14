@@ -56,14 +56,16 @@ Ref https://rescript-lang.org/docs/manual/latest/bind-to-global-js-values
 ### window? // does global variable exist
 
 ```rescript
-// // TODO: What's the syntax here? I get "The value window can't be found"
-// switch @external window {
-// | Some(_) => "window exists"
-// | None => "window does not exist"
-// }
+switch %external(window) {
+| Some(_) => "window exists"
+| None => "window does not exist"
+}
+
 ```
 
-`@external NAME` makes `NAME` available as an value of type `option<'a>`, meaning its wrapped value is compatible with any type. I recommend that, if you use the value, to cast it safely into a known type first.
+`%external(NAME)` makes `NAME` available as an value of type `option<'a>`, meaning its wrapped value is compatible with any type. I recommend that, if you use the value, to cast it safely into a known type first.
+
+Ref https://rescript-lang.org/docs/manual/latest/bind-to-global-js-values#special-global-values
 
 ### Math.PI // variable in global module
 
@@ -342,7 +344,10 @@ Ref: https://rescript-lang.org/docs/manual/latest/bind-to-js-object#bind-using-s
 ### const newStr = str.replace(substr, newSubstr) // non-mutating instance method
 
 ```rescript
-// TODO:
+@bs.send.pipe(: string)
+external replace: (~substr: string, ~newSubstr: string) => string = "replace"
+
+let newStr = replace(~substr, ~newSubstr, str)
 ```
 
 Note: `@bs.send.pipe` is deprecated in favour of `@bs.send`.
